@@ -25,7 +25,7 @@ typedef struct {
 } Loop;
 
 
-void set_loop(Loop *loop, char *instructions, long from, size_t len);
+long set_loop(Loop *loop, char *instructions, long from, size_t len);
 
 
 /// @brief Initialise the main context (machine + pointer)
@@ -38,7 +38,7 @@ void context_init(Context *ctx, long long machine_len);
 /// @param instructions The flow of instructions to follow
 /// @param len The length of the flow
 /// @return 
-int execute(Context *ctx, char *instructions, size_t len);
+void execute(Context *ctx, char *instructions, size_t len);
 
 /// @brief Checks the validity  of the instructions flow (in terms of loop(s) arrangement)
 /// @param instructions The intructions flow
@@ -51,7 +51,7 @@ int check_validity(char *instructions, size_t len);// Check loop validity
 /// @param len The length of the flow
 /// @param start The starting point of the loop
 /// @param ctx The context
-void handle_loop(char *instructions, size_t len, size_t start, Context *ctx);
+long handle_loop(char *instructions, size_t len, size_t start, Context *ctx);
 
 
 //Utils

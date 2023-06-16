@@ -58,21 +58,26 @@ int main(int argc, char *argv[]) {
   return EXIT_SUCCESS;
 }
 
-int execute(Context *ctx, char *instructions, size_t len) {
+void execute(Context *ctx, char *instructions, size_t len) {
   errno = 0;
-  for (int instr_idx = 0; instr_idx < len; instr_idx++) {
-    switch (instructions[instr_idx]) {
+  long following = 0;
+  while (following < len){
+    switch (instructions[following]) {
     case '>':
       ctx->pointer = clamp(ctx->pointer+1, 0, MACHINE_LEN-1); // Avoid overflow
+      following++;
       break;
     case '<':
       ctx->pointer = clamp(ctx->pointer-1, 0, MACHINE_LEN); // Avoid overflow
+      following++;
       break;
     case '+':
       *get_pt(ctx) += 1;
+      following++;
       break;
     case '-':
       *get_pt(ctx) -= 1;
+      following++;
       break;
     case ',':
       *get_pt(ctx) = clamp(getc(stdin), 0, 255);
@@ -80,18 +85,22 @@ int execute(Context *ctx, char *instructions, size_t len) {
         fprintf(stderr, "Clamping issue");
         exit(EXIT_FAILURE);
       }
+      following++;
       break;
     case '.':
       printf("%d\n", *get_pt(ctx));
+      following++;
       break;
     case '[':
-      printf("Here is loop, which end is at pos %d", seek(instructions, instr_idx, len, ']'));
+      following = handle_loop(instructions, len, following, ctx);
+      following++;
       break;
     case ']':
+      following++;
       break;
     }
+    
   }
-  return 0;
 }
 
 int check_validity(char *instructions, size_t len) { // Loops validity
@@ -144,28 +153,24 @@ int read_sequence(FILE *fp, char buff[], size_t buf_len) {
   return 0;
 }
 
-// Sets the loop -> this traps the instructions bewteen the two brackets
-void set_loop(Loop *loop, char *instructions, long from, size_t len) {
-  size_t closing_idx =
-      seek(instructions, from, len, ']'); // Search for closing in
-  if (closing_idx ==
-      -1) { // No errors should be yielded, as the flow of instructions was
-            // checked beforehand in terms of loops correctness
-    fprintf(stderr, "Source code was checked but loops are bugged");
+long set_loop(Loop *loop, char *instructions, long from, size_t len) {
+  long closing_bracket_idx = seek(instructions, from, len, ']');
+  if (closing_bracket_idx == -1) {
+    fprintf(stderr, "Unrecoverable error: checked for correct loop pattern but an error occured...\n");
     exit(EXIT_FAILURE);
   }
-  loop->looping_instr = substr(instructions, len, from + 1, closing_idx);
-  loop->len = closing_idx - from;
+  loop->looping_instr = substr(instructions, len, from, closing_bracket_idx);
+  loop->len = closing_bracket_idx-from;
+  return closing_bracket_idx;
 }
 
-void handle_loop(char *instructions, size_t len, size_t start, Context *ctx) {
+long handle_loop(char *instructions, size_t len, size_t start, Context *ctx) {
   Loop loop;
-  set_loop(&loop, instructions, start, len);
-  while (get_pt(ctx) != 0) {
-    execute(ctx, loop.looping_instr, loop.len);
-  }
-  *get_pt(ctx) = (int) start + len + 1;
+  long end = set_loop(&loop, instructions, start, len);
+  execute(ctx, loop.looping_instr, loop.len);
+  return end;
 }
+
 
 char *substr(char *str, size_t len, size_t idx_pro, size_t idx_post) {
   if (idx_post < idx_pro || idx_post >= len) {
