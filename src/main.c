@@ -4,50 +4,54 @@
 #include "string.h"
 #include <stddef.h>
 #include <sys/types.h>
+#include "errno.h"
+
+
+#define MACHINE_LEN 30
 
 int main(int argc, char *argv[]) {
-  if (argc < 3) { // source file is needed and machine length
+  if (argc < 2) { // source file is needed and machine length
     fprintf(stderr, "Failed getting arguments");
     exit(EXIT_FAILURE);
   }
 
-  long long machine_len = atoi(argv[1]); // Machine length
-  if (machine_len == 0) {
-    fprintf(stderr, "Couldn't parse machine length");
-    exit(EXIT_FAILURE);
-  }
-
-  FILE *source_c = fopen(argv[2], "r"); // Source file to be interpreted
+  FILE *source_c = fopen(argv[1], "r"); // Source file to be interpreted
   if (source_c == NULL) {
     fprintf(stderr, "Failed opening the source file which path was specified");
     exit(EXIT_FAILURE);
   }
   long long file_l = file_len(source_c);
-  //printf("%lld\n", file_l);
-  char *instructions =
-      malloc(file_l * sizeof(char)); // The instructions flow (read from file)
+  
+  char *instructions = malloc(file_l * sizeof(char)); // The instructions flow (read from file)
   if (instructions == NULL) {
     fprintf(stderr, "Allocation error");
     exit(EXIT_FAILURE);
   }
-  if (read_sequence(source_c, instructions, file_l) == -1) {
+
+  if (read_sequence(source_c, instructions, file_l) == -1) { // Read to own iunstructions buffer
     fprintf(stderr, "Failed to read sequence from file");
     exit(EXIT_FAILURE);
   }
-  if (check_validity(instructions, file_l) != 0) {
-    fprintf(stderr, "Instructions has invalid loop pattern\n");
+
+  if (check_validity(instructions, file_l) != 0) { // Are the script loops valid?
+    fprintf(stderr, "Instructions contain some invalid loop pattern\n");
     exit(EXIT_FAILURE);
   }
 
-  Context ctx;
-  context_init(&ctx, machine_len); // Initial status
+  Context ctx; // Main context
+  context_init(&ctx, MACHINE_LEN); // Initial status of the context (zero-initialized machine and head pointer)
+  
+  execute(&ctx, instructions, file_l); // Main process
 
-  execute(&ctx, instructions, file_l);
+  // Machine state after execution
   printf("Final state of the machine:\n");
-  for (long long i = 0; i < machine_len; i++) {
+  for (long long i = 0; i < MACHINE_LEN; i++) {
     printf("%d|", ctx.machine[i]);
   }
   printf("\n");
+
+
+  // Some frees
   free(instructions);
   free(ctx.machine);
   fclose(source_c);
@@ -55,28 +59,33 @@ int main(int argc, char *argv[]) {
 }
 
 int execute(Context *ctx, char *instructions, size_t len) {
+  errno = 0;
   for (int instr_idx = 0; instr_idx < len; instr_idx++) {
     switch (instructions[instr_idx]) {
     case '>':
-      ctx->pointer++;
+      ctx->pointer = clamp(ctx->pointer+1, 0, MACHINE_LEN-1); // Avoid overflow
       break;
     case '<':
-      ctx->pointer--;
+      ctx->pointer = clamp(ctx->pointer-1, 0, MACHINE_LEN); // Avoid overflow
       break;
     case '+':
-      ctx->machine[ctx->pointer]++;
+      *get_pt(ctx) += 1;
       break;
     case '-':
-      ctx->machine[ctx->pointer]--;
+      *get_pt(ctx) -= 1;
       break;
     case ',':
-      input(ctx);
+      *get_pt(ctx) = clamp(getc(stdin), 0, 255);
+      if (errno != 0) {
+        fprintf(stderr, "Clamping issue");
+        exit(EXIT_FAILURE);
+      }
       break;
     case '.':
-      printf("%d\n", ctx->machine[ctx->pointer]);
+      printf("%d\n", *get_pt(ctx));
       break;
     case '[':
-
+      printf("Here is loop, which end is at pos %d", seek(instructions, instr_idx, len, ']'));
       break;
     case ']':
       break;
@@ -98,7 +107,7 @@ int check_validity(char *instructions, size_t len) { // Loops validity
       return -1;
     }
   }
-  if (rel != 0) { // missed or exceeded
+  if (rel != 0) { // Missed or exceeded
     return -1;
   }
   return 0;
@@ -119,12 +128,6 @@ long long file_len(FILE *fp) {
   long long len = ftell(fp);
   rewind(fp);
   return len;
-}
-
-void input(Context *ctx) {
-  char c;
-  scanf("%c", &c);
-  ctx->machine[ctx->pointer] = (int)c;
 }
 
 // Fails if buff is smaller than source code (pointed to by fp)
@@ -158,10 +161,10 @@ void set_loop(Loop *loop, char *instructions, long from, size_t len) {
 void handle_loop(char *instructions, size_t len, size_t start, Context *ctx) {
   Loop loop;
   set_loop(&loop, instructions, start, len);
-  while (ctx->machine[ctx->pointer] != 0) {
+  while (get_pt(ctx) != 0) {
     execute(ctx, loop.looping_instr, loop.len);
   }
-  ctx->pointer = start + len + 1;
+  *get_pt(ctx) = (int) start + len + 1;
 }
 
 char *substr(char *str, size_t len, size_t idx_pro, size_t idx_post) {
@@ -183,4 +186,26 @@ long seek(char *flow, long beg, size_t len, char pred) {
     }
   }
   return -1;
+}
+
+int get(Context *ctx) {
+  return ctx->machine[ctx->pointer];
+}
+
+int *get_pt(Context *ctx) { // Returns a pointer to the specific cell (might be mutated then)
+  return &ctx->machine[ctx->pointer];
+}
+
+int clamp(int value, int min, int max) {
+  if (min > max) {
+    errno = -1;
+  }
+  if (value <= min) {
+    return min;
+  }
+  else if (value >= max)
+  {
+    return max;
+  }
+  return value;
 }
