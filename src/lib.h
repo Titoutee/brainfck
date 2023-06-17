@@ -60,4 +60,5 @@ long long file_len(FILE* fp); // Gets file_len (util function)
 int read_sequence(FILE *fp, char buff[], size_t buf_len); // Stores the flow of instructions into tokens into buff
 char *substr(char *str, size_t len, size_t idx_pro, size_t idx_post);
 int clamp(int value, int min, int max);
+long total_count_relative(char *str, char pred_plus, char pred_minus, size_t len);
 //long long relative_offset_count(char *instructions, size_t machine_len);
