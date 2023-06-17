@@ -4,4 +4,4 @@
 ```gcc src/main.c src/lib.c -o build/bf```
 
 #For running type:
-```./build/bf```
+```./build/bf yourfavouritebfcode.bf```
