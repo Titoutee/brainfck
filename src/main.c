@@ -1,11 +1,10 @@
+#include "errno.h"
 #include "lib.h"
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
 #include <stddef.h>
 #include <sys/types.h>
-#include "errno.h"
-
 
 #define MACHINE_LEN 30
 
@@ -21,26 +20,31 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
   long long file_l = file_len(source_c);
-  
-  char *instructions = malloc(file_l * sizeof(char)); // The instructions flow (read from file)
+
+  char *instructions =
+      malloc(file_l * sizeof(char)); // The instructions flow (read from file)
   if (instructions == NULL) {
     fprintf(stderr, "Allocation error");
     exit(EXIT_FAILURE);
   }
 
-  if (read_sequence(source_c, instructions, file_l) == -1) { // Read to own iunstructions buffer
+  if (read_sequence(source_c, instructions, file_l) ==
+      -1) { // Read to own iunstructions buffer
     fprintf(stderr, "Failed to read sequence from file");
     exit(EXIT_FAILURE);
   }
 
-  if (check_validity(instructions, file_l) != 0) { // Are the script loops valid?
+  if (check_validity(instructions, file_l) !=
+      0) { // Are the script loops valid?
     fprintf(stderr, "Instructions contain some invalid loop pattern\n");
     exit(EXIT_FAILURE);
   }
 
   Context ctx; // Main context
-  context_init(&ctx, MACHINE_LEN); // Initial status of the context (zero-initialized machine and head pointer)
-  
+  context_init(&ctx,
+               MACHINE_LEN); // Initial status of the context (zero-initialized
+                             // machine and head pointer)
+
   execute(&ctx, instructions, file_l); // Main process
 
   // Machine state after execution
@@ -49,7 +53,6 @@ int main(int argc, char *argv[]) {
     printf("%d|", ctx.machine[i]);
   }
   printf("\n");
-
 
   // Some frees
   free(instructions);
@@ -60,24 +63,22 @@ int main(int argc, char *argv[]) {
 
 void execute(Context *ctx, char *instructions, size_t len) {
   errno = 0;
-  long following = 0;
-  while (following < len){
-    switch (instructions[following]) {
+  long step = 0;
+  while (step < len) {
+    switch (instructions[step]) {
     case '>':
-      ctx->pointer = clamp(ctx->pointer+1, 0, MACHINE_LEN-1); // Avoid overflow
-      following++;
+      ctx->pointer =
+          clamp(ctx->pointer + 1, 0, MACHINE_LEN - 1); // Avoid machine overflow
       break;
     case '<':
-      ctx->pointer = clamp(ctx->pointer-1, 0, MACHINE_LEN); // Avoid overflow
-      following++;
+      ctx->pointer =
+          clamp(ctx->pointer - 1, 0, MACHINE_LEN); // Avoid machine overflow
       break;
     case '+':
       *get_pt(ctx) += 1;
-      following++;
       break;
     case '-':
       *get_pt(ctx) -= 1;
-      following++;
       break;
     case ',':
       *get_pt(ctx) = clamp(getc(stdin), 0, 255);
@@ -85,21 +86,17 @@ void execute(Context *ctx, char *instructions, size_t len) {
         fprintf(stderr, "Clamping issue");
         exit(EXIT_FAILURE);
       }
-      following++;
       break;
     case '.':
       printf("%d\n", *get_pt(ctx));
-      following++;
       break;
     case '[':
-      following = handle_loop(instructions, len, following, ctx);
-      following++;
-      break;
-    case ']':
-      following++;
+      step = handle_loop(
+          instructions, len, step /*The opening bracket we are on*/,
+          ctx); // the execution process let handle_loop the responsability
       break;
     }
-    
+    step++;
   }
 }
 
@@ -153,24 +150,28 @@ int read_sequence(FILE *fp, char buff[], size_t buf_len) {
   return 0;
 }
 
-long set_loop(Loop *loop, char *instructions, long from, size_t len) {
-  long closing_bracket_idx = seek(instructions, from, len, ']');
-  if (closing_bracket_idx == -1) {
-    fprintf(stderr, "Unrecoverable error: checked for correct loop pattern but an error occured...\n");
+long set_loop(Loop *loop, char *instructions, long start, size_t len) {
+  long closing_bracket_idx = seek(instructions, start, len, ']'); // -1 if error
+  if (closing_bracket_idx == -1) { // Why is this passing?????
+    fprintf(stderr,
+            "Unrecoverable error: checked for correct loop pattern beforehand "
+            "but an error occured while attempting to close loop...\n");
     exit(EXIT_FAILURE);
   }
-  loop->looping_instr = substr(instructions, len, from, closing_bracket_idx);
-  loop->len = closing_bracket_idx-from;
+  loop->looping_instr = substr(instructions, len, start+1, closing_bracket_idx);
+  loop->len = closing_bracket_idx - start - 1;
+  printf("%ld, %s\n", loop->len, loop->looping_instr);
   return closing_bracket_idx;
 }
 
 long handle_loop(char *instructions, size_t len, size_t start, Context *ctx) {
   Loop loop;
-  long end = set_loop(&loop, instructions, start, len);
-  execute(ctx, loop.looping_instr, loop.len);
-  return end;
+  long end_loop = set_loop(&loop, instructions, start, len);
+  while (get(ctx) != 0) {
+    execute(ctx, loop.looping_instr, loop.len); // Loop approach is recursive
+  }
+  return end_loop;
 }
-
 
 char *substr(char *str, size_t len, size_t idx_pro, size_t idx_post) {
   if (idx_post < idx_pro || idx_post >= len) {
@@ -183,7 +184,7 @@ char *substr(char *str, size_t len, size_t idx_pro, size_t idx_post) {
   }
   return buff;
 }
-// Seek for a char in
+// Seek for a predicate in a string starting at some index
 long seek(char *flow, long beg, size_t len, char pred) {
   for (long i = beg; i < len; i++) {
     if (flow[i] == pred) {
@@ -193,11 +194,10 @@ long seek(char *flow, long beg, size_t len, char pred) {
   return -1;
 }
 
-int get(Context *ctx) {
-  return ctx->machine[ctx->pointer];
-}
+int get(Context *ctx) { return ctx->machine[ctx->pointer]; }
 
-int *get_pt(Context *ctx) { // Returns a pointer to the specific cell (might be mutated then)
+int *get_pt(Context *ctx) { // Returns a pointer to the specific cell (might be
+                            // mutated then)
   return &ctx->machine[ctx->pointer];
 }
 
@@ -207,9 +207,7 @@ int clamp(int value, int min, int max) {
   }
   if (value <= min) {
     return min;
-  }
-  else if (value >= max)
-  {
+  } else if (value >= max) {
     return max;
   }
   return value;
