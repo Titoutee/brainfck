@@ -1,7 +1,5 @@
 #include "stdio.h"
-#include "stdlib.h"
 #include <stddef.h>
-
 
 typedef struct {
     long long pointer;
@@ -24,7 +22,12 @@ typedef struct {
     size_t len;
 } Loop;
 
-
+/// @brief Sets the loop status when encountering an opening bracket
+/// @param loop The loop context
+/// @param instructions Flow of instructions
+/// @param from The starting point of the loop
+/// @param len The length of the instruction flow
+/// @return The index of the closing bracket (propagation is useful sometimes :))
 long set_loop(Loop *loop, char *instructions, long from, size_t len);
 
 
@@ -44,7 +47,7 @@ void execute(Context *ctx, char *instructions, size_t len);
 /// @param instructions The intructions flow
 /// @param len The length of the flow
 /// @return 
-int check_validity(char *instructions, size_t len);// Check loop validity
+int check_validity(char *instructions, size_t len);// Check loop validity (wrapper arounf total_count_relative)
 
 /// @brief For handling loops (capture inbetween instructions and return to flow after execution)
 /// @param instructions The flow of instructions

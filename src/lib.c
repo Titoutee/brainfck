@@ -1,7 +1,10 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "errno.h"
-#include "lib.h"
+#include "mainlib.h"
+#include "optimizer/optimizer.h"
+#include <stddef.h>
+#include <string.h>
 
 #define MACHINE_LEN 30
 
@@ -32,7 +35,7 @@ void execute(Context *ctx, char *instructions, size_t len) {
       }
       break;
     case '.':
-      printf("%d\n", *get_pt(ctx));
+      printf("%c", *get_pt(ctx));
       break;
     case '[':
       step = handle_loop(
@@ -83,7 +86,7 @@ int read_sequence(FILE *fp, char buff[], size_t buf_len) {
   return 0;
 }
 
-long set_loop(Loop *loop, char *instructions, long start, size_t len) {
+long set_loop(Loop *loop, char instructions[], long start, size_t len) {
   long closing_bracket_idx = seek(instructions, start, len, ']'); // -1 if error
   if (closing_bracket_idx == -1 || closing_bracket_idx == start + 1) {
     fprintf(stderr,
@@ -98,7 +101,7 @@ long set_loop(Loop *loop, char *instructions, long start, size_t len) {
   return closing_bracket_idx;
 }
 
-long handle_loop(char *instructions, size_t len, size_t start, Context *ctx) {
+long handle_loop(char instructions[], size_t len, size_t start, Context *ctx) {
   Loop loop;
   long end_loop = set_loop(&loop, instructions, start, len);
   while (get(ctx) != 0) {
@@ -107,7 +110,7 @@ long handle_loop(char *instructions, size_t len, size_t start, Context *ctx) {
   return end_loop;
 }
 
-char *substr(char *str, size_t len, size_t idx_pro, size_t idx_post) {
+char *substr(char str[], size_t len, size_t idx_pro, size_t idx_post) {
   if (idx_post < idx_pro || idx_post >= len) {
     fprintf(stderr, "Wrong indexes\n");
     exit(EXIT_FAILURE);
@@ -162,3 +165,62 @@ int clamp(int value, int min, int max) {
   }
   return value;
 }
+
+void remove_char(char string[], char pred, size_t len) {
+    int i = 0;
+    while (i < len) {
+        if (string[i] == pred) {
+            remove_char_at(string, len, i);
+            break;
+        } else i++;
+    }
+}
+
+void remove_char_all(char string[], char pred, size_t len) {
+    int i = 0;
+    while (i < len) {
+        if (string[i] == pred) {
+            remove_char_at(string, len, i);
+            //break;
+        } else i++;
+    }
+}
+
+void remove_char_at(char string[], size_t len, size_t idx) {
+  if (idx>= len) {
+    fprintf(stderr, "Bad index");
+    exit(EXIT_FAILURE);
+  }
+  for (int i = idx; i < len; i++) {
+    string[i] = string[i+1];
+  }
+}
+
+// DANGER: Do NOT use
+int insert_at(char string[], char insert, size_t idx) {
+  if (idx > strlen(string)) { // Or i > strlen(string) + 1, as it doesn't count \0
+    return -1;
+  }
+  int i;
+  string = realloc(string, sizeof(char) * (strlen(string) + 2)); // We reallocate space for one more element
+  if (string == NULL) {
+    fprintf(stderr, "Reallocation failed");
+    exit(EXIT_FAILURE);
+  }
+  for (i = strlen(string)-2; i > idx; i--) {
+    string[i+1] = string[i];
+  }
+  string[i] = insert;
+  return 0;
+}
+
+void optimizer(char instructions_flow[])  {
+    remove_char_all(instructions_flow, ' ', strlen(instructions_flow) + 1);
+}
+
+//int segment_count(char *trunc_from_beg, char pred_plus, char pred_minus) {
+//  int c = 0;
+//  for (int i = 0; i < strlen(trunc_from_beg); i++) {
+//    
+//  }
+//}
